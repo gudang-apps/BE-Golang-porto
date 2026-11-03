@@ -1,0 +1,16 @@
+.scannerwork
+Makefile
+config/*.env
+.idea
+air.toml
+.air.toml
+/tmp/*
+**/.DS_Store
+.env
+.vscode
+docs.md
+instructions.md
+instruction.md
+README copy.md
+DS_Store
+config/.env
