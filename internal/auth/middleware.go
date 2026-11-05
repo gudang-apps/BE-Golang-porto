@@ -24,11 +24,20 @@ func Require(service *Service) fiber.Handler {
 func RequireAdmin() fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		user, ok := c.Locals("user").(User)
-		if !ok || user.Role != "admin" {
-			return fiber.NewError(fiber.StatusForbidden, "admin role is required")
+		if !ok || !hasRole(user.Roles, "owner") {
+			return fiber.NewError(fiber.StatusForbidden, "owner role is required")
 		}
 		return c.Next()
 	}
+}
+
+func hasRole(roles []string, expected string) bool {
+	for _, role := range roles {
+		if role == expected {
+			return true
+		}
+	}
+	return false
 }
 
 func CurrentUser(c *fiber.Ctx) (User, bool) {

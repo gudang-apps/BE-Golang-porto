@@ -7,7 +7,6 @@ import (
 	"os"
 	"strconv"
 	"strings"
-	"time"
 )
 
 type Config struct {
@@ -16,9 +15,6 @@ type Config struct {
 	CORSOrigin string
 	Database   Database
 	JWTSecret  []byte
-	OTPTTL     time.Duration
-	OCRBinary  string
-	OCRLang    string
 }
 
 type Database struct {
@@ -28,7 +24,6 @@ type Database struct {
 	Password string
 	Name     string
 	SSLMode  string
-	Schema   string
 }
 
 func Load() (Config, error) {
@@ -73,7 +68,6 @@ func fromValues(get func(string) string) (Config, error) {
 		Password: get("DB_PASSWORD"),
 		Name:     strings.TrimSpace(get("DB_NAME")),
 		SSLMode:  strings.TrimSpace(get("DB_SSLMODE")),
-		Schema:   strings.TrimSpace(get("DB_SCHEMA")),
 	}
 	cfg.Database.Port, err = intValue(get, "DB_PORT", 5432)
 	if err != nil || cfg.Database.Port < 1 || cfg.Database.Port > 65535 {
@@ -85,15 +79,6 @@ func fromValues(get func(string) string) (Config, error) {
 	if cfg.Database.SSLMode == "" {
 		cfg.Database.SSLMode = "disable"
 	}
-	if cfg.Database.Schema == "" {
-		cfg.Database.Schema = "warehouse"
-	}
-	if !validSchema(cfg.Database.Schema) {
-		return cfg, errors.New("DB_SCHEMA hanya boleh berisi huruf, angka, dan underscore; karakter pertama harus huruf atau underscore")
-	}
-	if cfg.Database.Schema != "warehouse" {
-		return cfg, errors.New("DB_SCHEMA harus bernilai warehouse agar sesuai dengan migration")
-	}
 
 	secret := get("JWT_SECRET")
 	if len(secret) < 32 {
@@ -101,21 +86,6 @@ func fromValues(get func(string) string) (Config, error) {
 	}
 	cfg.JWTSecret = []byte(secret)
 
-	cfg.OTPTTL, err = time.ParseDuration(strings.TrimSpace(get("OTP_TTL")))
-	if get("OTP_TTL") == "" {
-		cfg.OTPTTL = 5 * time.Minute
-	} else if err != nil || cfg.OTPTTL < time.Minute || cfg.OTPTTL > 15*time.Minute {
-		return cfg, errors.New("OTP_TTL harus berdurasi 1m sampai 15m")
-	}
-
-	cfg.OCRBinary = strings.TrimSpace(get("OCR_BINARY"))
-	if cfg.OCRBinary == "" {
-		cfg.OCRBinary = "tesseract"
-	}
-	cfg.OCRLang = strings.TrimSpace(get("OCR_LANG"))
-	if cfg.OCRLang == "" {
-		cfg.OCRLang = "ind+eng"
-	}
 	return cfg, nil
 }
 
@@ -129,19 +99,6 @@ func intValue(get func(string) string, key string, fallback int) (int, error) {
 		return 0, err
 	}
 	return value, nil
-}
-
-func validSchema(schema string) bool {
-	if schema == "" {
-		return false
-	}
-	for i, r := range schema {
-		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || r == '_' || (i > 0 && r >= '0' && r <= '9') {
-			continue
-		}
-		return false
-	}
-	return true
 }
 
 func loadDotEnv(path string, values map[string]string) error {

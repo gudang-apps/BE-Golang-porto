@@ -8,59 +8,64 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
-func TestPhonePatternAndNormalization(t *testing.T) {
-	valid := normalizePhone(" +628123456789 ")
-	if !phonePattern.MatchString(valid) {
-		t.Fatalf("expected valid E.164 phone, got %q", valid)
+func TestEmailValidation(t *testing.T) {
+	if !validEmail(normalizeEmail(" User@Example.com ")) {
+		t.Fatal("expected valid normalized email")
 	}
-	if phonePattern.MatchString("08123456789") {
-		t.Fatal("local phone format must be rejected; use E.164")
-	}
-}
-
-func TestOTPHashIsBoundToChallenge(t *testing.T) {
-	service := NewService(nil, []byte(strings.Repeat("x", 32)), 0, nil)
-	hash := service.hashCode("challenge-a", "123456")
-	if !service.matchesCode("challenge-a", "123456", fmtHex(hash)) {
-		t.Fatal("expected matching code")
-	}
-	if service.matchesCode("challenge-b", "123456", fmtHex(hash)) {
-		t.Fatal("code hash must not be reusable across challenges")
+	for _, email := range []string{"", "not-an-email", " user@example.com ", "user@example.com,other@example.com"} {
+		if validEmail(email) {
+			t.Errorf("validEmail(%q) = true, want false", email)
+		}
 	}
 }
 
 func TestParseTokenRequiresExpiryAndHS256(t *testing.T) {
 	secret := []byte(strings.Repeat("x", 32))
-	service := NewService(nil, secret, 0, nil)
+	service := NewService(nil, secret)
 	valid := signedAuthToken(t, jwt.SigningMethodHS256, jwt.MapClaims{
-		"sub":   "a8c17038-50e1-4efb-849a-dda82cbde8cb",
-		"phone": "+628123456789",
-		"role":  "staff",
+		"sub":   "42",
+		"email": "user@example.com",
+		"name":  "User",
+		"roles": []string{"staff"},
 		"iat":   time.Now().Unix(),
 		"exp":   time.Now().Add(time.Minute).Unix(),
 	}, secret)
-	if user, err := service.ParseToken(valid); err != nil || user.Role != "staff" {
+	if user, err := service.ParseToken(valid); err != nil || len(user.Roles) != 1 || user.Roles[0] != "staff" {
 		t.Fatalf("ParseToken() = (%+v, %v), want staff user", user, err)
 	}
 
 	missingExpiry := signedAuthToken(t, jwt.SigningMethodHS256, jwt.MapClaims{
-		"sub":   "a8c17038-50e1-4efb-849a-dda82cbde8cb",
-		"phone": "+628123456789",
-		"role":  "staff",
+		"sub":   "42",
+		"email": "user@example.com",
+		"name":  "User",
+		"roles": []string{"staff"},
 	}, secret)
 	if _, err := service.ParseToken(missingExpiry); err == nil {
 		t.Fatal("expected token without expiry to be rejected")
 	}
 
 	weakAlgorithm := signedAuthToken(t, jwt.SigningMethodHS384, jwt.MapClaims{
-		"sub":   "a8c17038-50e1-4efb-849a-dda82cbde8cb",
-		"phone": "+628123456789",
-		"role":  "staff",
+		"sub":   "42",
+		"email": "user@example.com",
+		"name":  "User",
+		"roles": []string{"staff"},
 		"iat":   time.Now().Unix(),
 		"exp":   time.Now().Add(time.Minute).Unix(),
 	}, secret)
 	if _, err := service.ParseToken(weakAlgorithm); err == nil {
 		t.Fatal("expected non-HS256 token to be rejected")
+	}
+
+	invalidRole := signedAuthToken(t, jwt.SigningMethodHS256, jwt.MapClaims{
+		"sub":   "42",
+		"email": "user@example.com",
+		"name":  "User",
+		"roles": []string{"admin"},
+		"iat":   time.Now().Unix(),
+		"exp":   time.Now().Add(time.Minute).Unix(),
+	}, secret)
+	if _, err := service.ParseToken(invalidRole); err == nil {
+		t.Fatal("expected unknown role to be rejected")
 	}
 }
 
@@ -71,14 +76,4 @@ func signedAuthToken(t *testing.T, method jwt.SigningMethod, claims jwt.MapClaim
 		t.Fatal(err)
 	}
 	return token
-}
-
-func fmtHex(value []byte) string {
-	const digits = "0123456789abcdef"
-	result := make([]byte, len(value)*2)
-	for i, b := range value {
-		result[i*2] = digits[b>>4]
-		result[i*2+1] = digits[b&15]
-	}
-	return string(result)
 }

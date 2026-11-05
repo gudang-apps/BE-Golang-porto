@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"errors"
 	"log"
 	"os"
 	"os/signal"
@@ -20,9 +19,6 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	if cfg.AppEnv == "production" {
-		return errors.New("WhatsApp OTP provider is not configured; development OTP sender is disabled in production")
-	}
 
 	db, err := database.Open(context.Background(), cfg.Database)
 	if err != nil {
@@ -30,7 +26,7 @@ func run() error {
 	}
 	defer db.Close()
 
-	authService := auth.NewService(db, cfg.JWTSecret, cfg.OTPTTL, auth.ConsoleSender{})
+	authService := auth.NewService(db, cfg.JWTSecret)
 	api := server.New(cfg, db, authService)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -39,7 +35,7 @@ func run() error {
 	go func() {
 		serverErrors <- api.Start()
 	}()
-	log.Printf("warehouse API listening on :%d (%s)", cfg.Port, cfg.AppEnv)
+	log.Printf("API listening on :%d (%s)", cfg.Port, cfg.AppEnv)
 
 	select {
 	case err := <-serverErrors:

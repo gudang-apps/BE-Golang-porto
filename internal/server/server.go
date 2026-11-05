@@ -8,7 +8,6 @@ import (
 
 	"warehouse-service/internal/auth"
 	"warehouse-service/internal/config"
-	"warehouse-service/internal/ocr"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
@@ -21,7 +20,6 @@ type Server struct {
 	db   *sql.DB
 	cfg  config.Config
 	auth *auth.Service
-	ocr  *ocr.Reader
 }
 
 func New(cfg config.Config, db *sql.DB, authService *auth.Service) *Server {
@@ -51,7 +49,6 @@ func New(cfg config.Config, db *sql.DB, authService *auth.Service) *Server {
 		db:   db,
 		cfg:  cfg,
 		auth: authService,
-		ocr:  ocr.New(cfg.OCRBinary, cfg.OCRLang),
 	}
 	server.registerRoutes()
 	return server
@@ -66,40 +63,7 @@ func (s *Server) registerRoutes() {
 	})
 
 	authGroup := s.App.Group("/api/v1/auth")
-	authGroup.Post("/register", limiter.New(limiter.Config{Max: 5, Expiration: time.Minute}), s.register)
 	authGroup.Post("/login", limiter.New(limiter.Config{Max: 10, Expiration: time.Minute}), s.login)
-	authGroup.Post("/otp/verify", limiter.New(limiter.Config{Max: 10, Expiration: time.Minute}), s.verifyLogin)
-
-	api := s.App.Group("/api/v1", auth.Require(s.auth))
-	api.Post("/auth/invitations", auth.RequireAdmin(), s.invite)
-
-	api.Get("/products", s.listProducts)
-	api.Post("/products", s.createProduct)
-	api.Post("/products/scan", s.scanSKU)
-	api.Get("/products/sku/:sku", s.getProductBySKU)
-	api.Get("/products/:id", s.getProduct)
-	api.Put("/products/:id", s.updateProduct)
-	api.Delete("/products/:id", s.deleteProduct)
-
-	api.Get("/warehouses", s.listWarehouses)
-	api.Post("/warehouses", s.createWarehouse)
-	api.Get("/warehouses/:id", s.getWarehouse)
-	api.Put("/warehouses/:id", s.updateWarehouse)
-	api.Delete("/warehouses/:id", s.deleteWarehouse)
-
-	api.Get("/suppliers", s.listSuppliers)
-	api.Post("/suppliers", s.createSupplier)
-	api.Get("/suppliers/:id", s.getSupplier)
-	api.Put("/suppliers/:id", s.updateSupplier)
-	api.Delete("/suppliers/:id", s.deleteSupplier)
-
-	api.Get("/stock", s.listStock)
-	api.Get("/stock/low", s.listLowStock)
-	api.Get("/stock-movements", s.listMovements)
-	api.Post("/stock-movements/inbound", s.createInbound)
-	api.Post("/stock-movements/outbound", s.createOutbound)
-	api.Post("/stock-movements/transfer", s.createTransfer)
-	api.Post("/stock-movements/adjustment", s.createAdjustment)
 }
 
 func (s *Server) Start() error {
