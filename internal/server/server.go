@@ -6,8 +6,8 @@ import (
 	"strconv"
 	"time"
 
-	"warehouse-service/internal/auth"
 	"warehouse-service/internal/config"
+	"warehouse-service/presentation/controller"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
@@ -16,13 +16,12 @@ import (
 )
 
 type Server struct {
-	App  *fiber.App
-	db   *sql.DB
-	cfg  config.Config
-	auth *auth.Service
+	App *fiber.App
+	db  *sql.DB
+	cfg config.Config
 }
 
-func New(cfg config.Config, db *sql.DB, authService *auth.Service) *Server {
+func New(cfg config.Config, db *sql.DB, api *controller.API) *Server {
 	app := fiber.New(fiber.Config{
 		DisableStartupMessage: true,
 		BodyLimit:             10 * 1024 * 1024,
@@ -45,16 +44,15 @@ func New(cfg config.Config, db *sql.DB, authService *auth.Service) *Server {
 		AllowMethods: "GET, POST, PUT, PATCH, DELETE, OPTIONS",
 	}))
 	server := &Server{
-		App:  app,
-		db:   db,
-		cfg:  cfg,
-		auth: authService,
+		App: app,
+		db:  db,
+		cfg: cfg,
 	}
-	server.registerRoutes()
+	server.registerRoutes(api)
 	return server
 }
 
-func (s *Server) registerRoutes() {
+func (s *Server) registerRoutes(api *controller.API) {
 	s.App.Get("/healthz", func(c *fiber.Ctx) error {
 		if err := s.db.PingContext(c.UserContext()); err != nil {
 			return fiber.NewError(fiber.StatusServiceUnavailable, "database unavailable")
@@ -62,8 +60,8 @@ func (s *Server) registerRoutes() {
 		return c.JSON(fiber.Map{"success": true, "data": fiber.Map{"status": "ok"}})
 	})
 
-	authGroup := s.App.Group("/api/v1/auth")
-	authGroup.Post("/login", limiter.New(limiter.Config{Max: 10, Expiration: time.Minute}), s.login)
+	s.App.Use("/api/v1/auth/login", limiter.New(limiter.Config{Max: 10, Expiration: time.Minute}))
+	api.Register(s.App)
 }
 
 func (s *Server) Start() error {

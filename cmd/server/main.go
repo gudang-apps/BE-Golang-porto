@@ -8,10 +8,13 @@ import (
 	"syscall"
 	"time"
 
-	"warehouse-service/internal/auth"
+	"warehouse-service/infrastructure/postgres"
+	"warehouse-service/infrastructure/security"
 	"warehouse-service/internal/config"
 	"warehouse-service/internal/database"
 	"warehouse-service/internal/server"
+	"warehouse-service/presentation/controller"
+	"warehouse-service/usecase"
 )
 
 func run() error {
@@ -26,14 +29,22 @@ func run() error {
 	}
 	defer db.Close()
 
-	authService := auth.NewService(db, cfg.JWTSecret)
-	api := server.New(cfg, db, authService)
+	repositories := postgres.NewRepositories(db)
+	tokens := security.NewJWT(cfg.JWTSecret)
+	api := controller.New(
+		usecase.NewAuth(repositories, tokens),
+		usecase.NewCatalog(repositories),
+		usecase.NewSales(repositories),
+		usecase.NewWorkflow(repositories),
+		tokens,
+	)
+	apiServer := server.New(cfg, db, api)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	serverErrors := make(chan error, 1)
 	go func() {
-		serverErrors <- api.Start()
+		serverErrors <- apiServer.Start()
 	}()
 	log.Printf("API listening on :%d (%s)", cfg.Port, cfg.AppEnv)
 
@@ -43,7 +54,7 @@ func run() error {
 	case <-ctx.Done():
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
-		if err := api.App.ShutdownWithContext(shutdownCtx); err != nil {
+		if err := apiServer.App.ShutdownWithContext(shutdownCtx); err != nil {
 			return err
 		}
 		return nil
