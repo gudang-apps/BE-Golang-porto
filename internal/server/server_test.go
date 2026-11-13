@@ -23,7 +23,7 @@ func (testAuthRepository) FindByEmail(_ context.Context, _ string) (entity.User,
 func TestProductsRequireAuthentication(t *testing.T) {
 	cfg := config.Config{Port: 8080, CORSOrigin: "http://localhost:3000", JWTSecret: []byte(strings.Repeat("x", 32))}
 	tokens := security.NewJWT(cfg.JWTSecret)
-	api := controller.New(usecase.NewAuth(testAuthRepository{}, tokens), nil, nil, nil, tokens)
+	api := controller.New(usecase.NewAuth(testAuthRepository{}, tokens), nil, nil, usecase.NewWorkflow(nil, nil), tokens)
 	server := New(cfg, nil, api)
 	response, err := server.App.Test(httptest.NewRequest("GET", "/api/v1/products", nil))
 	if err != nil {
@@ -37,7 +37,7 @@ func TestProductsRequireAuthentication(t *testing.T) {
 func TestLoginRejectsMissingCredentials(t *testing.T) {
 	secret := []byte(strings.Repeat("x", 32))
 	tokens := security.NewJWT(secret)
-	api := controller.New(usecase.NewAuth(testAuthRepository{}, tokens), nil, nil, nil, tokens)
+	api := controller.New(usecase.NewAuth(testAuthRepository{}, tokens), nil, nil, usecase.NewWorkflow(nil, nil), tokens)
 	server := New(config.Config{Port: 8080, CORSOrigin: "http://localhost:3000", JWTSecret: secret}, nil, api)
 	request := httptest.NewRequest("POST", "/api/v1/auth/login", strings.NewReader(`{}`))
 	request.Header.Set("Content-Type", "application/json")

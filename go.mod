@@ -3,6 +3,7 @@ module warehouse-service
 go 1.25.0
 
 require (
+	github.com/cloudinary/cloudinary-go/v2 v2.16.1
 	github.com/gofiber/fiber/v2 v2.52.9
 	github.com/golang-jwt/jwt/v5 v5.2.3
 	github.com/lib/pq v1.12.3
@@ -11,6 +12,8 @@ require (
 
 require (
 	github.com/clipperhouse/uax29/v2 v2.7.0 // indirect
+	github.com/creasty/defaults v1.7.0 // indirect
+	github.com/gorilla/schema v1.4.1 // indirect
 	github.com/philhofer/fwd v1.1.3-0.20240916144458-20a13a1f6b7c // indirect
 	github.com/tinylib/msgp v1.2.5 // indirect
 )

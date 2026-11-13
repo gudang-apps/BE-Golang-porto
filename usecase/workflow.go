@@ -2,7 +2,9 @@ package usecase
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
+	"net/http"
 	"strings"
 
 	"warehouse-service/domain/entity"
@@ -11,10 +13,15 @@ import (
 
 type Workflow struct {
 	repository repository.WorkflowRepository
+	images     ImageUploader
 }
 
-func NewWorkflow(repository repository.WorkflowRepository) *Workflow {
-	return &Workflow{repository: repository}
+type ImageUploader interface {
+	UploadImage(context.Context, string) (string, error)
+}
+
+func NewWorkflow(repository repository.WorkflowRepository, images ImageUploader) *Workflow {
+	return &Workflow{repository: repository, images: images}
 }
 
 func (u *Workflow) ListScans(ctx context.Context, userID int64, isOwner bool) ([]entity.InventoryScan, error) {
@@ -47,15 +54,44 @@ func (u *Workflow) CreateSKURequest(ctx context.Context, input entity.SKURequest
 		input.CostPrice < 0 || input.SellPrice < 0 || input.Stock < 0 || len(input.Notes) > 4000 {
 		return entity.SKURequest{}, fmt.Errorf("%w: invalid SKU request data", ErrInvalidInput)
 	}
-	if !strings.HasPrefix(input.Photo, "data:image/jpeg;base64,") &&
-		!strings.HasPrefix(input.Photo, "data:image/png;base64,") &&
-		!strings.HasPrefix(input.Photo, "data:image/webp;base64,") {
-		return entity.SKURequest{}, fmt.Errorf("%w: a JPEG, PNG, or WebP photo is required", ErrInvalidInput)
+	if err := validateSKUPhoto(input.Photo); err != nil {
+		return entity.SKURequest{}, err
 	}
-	if len(input.Photo) > 8*1024*1024 {
-		return entity.SKURequest{}, fmt.Errorf("%w: photo is too large", ErrInvalidInput)
+	if u.images == nil {
+		return entity.SKURequest{}, fmt.Errorf("Cloudinary image storage is not configured")
 	}
+	photoURL, err := u.images.UploadImage(ctx, input.Photo)
+	if err != nil {
+		return entity.SKURequest{}, fmt.Errorf("upload SKU photo: %w", err)
+	}
+	input.Photo = photoURL
 	return u.repository.CreateSKURequest(ctx, input, userID)
+}
+
+func validateSKUPhoto(photo string) error {
+	if len(photo) > 8*1024*1024 {
+		return fmt.Errorf("%w: photo is too large", ErrInvalidInput)
+	}
+	header, encoded, ok := strings.Cut(photo, ",")
+	if !ok {
+		return fmt.Errorf("%w: a JPEG, PNG, or WebP photo is required", ErrInvalidInput)
+	}
+	var expectedType string
+	switch header {
+	case "data:image/jpeg;base64":
+		expectedType = "image/jpeg"
+	case "data:image/png;base64":
+		expectedType = "image/png"
+	case "data:image/webp;base64":
+		expectedType = "image/webp"
+	default:
+		return fmt.Errorf("%w: a JPEG, PNG, or WebP photo is required", ErrInvalidInput)
+	}
+	data, err := base64.StdEncoding.DecodeString(encoded)
+	if err != nil || len(data) == 0 || http.DetectContentType(data) != expectedType {
+		return fmt.Errorf("%w: photo data is invalid", ErrInvalidInput)
+	}
+	return nil
 }
 
 func (u *Workflow) ReviewSKURequest(ctx context.Context, id int64, review entity.SKURequestReview, reviewerID int64) (entity.SKURequest, error) {

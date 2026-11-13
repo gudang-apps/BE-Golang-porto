@@ -10,6 +10,7 @@ import (
 
 	"warehouse-service/infrastructure/postgres"
 	"warehouse-service/infrastructure/security"
+	"warehouse-service/infrastructure/storage"
 	"warehouse-service/internal/config"
 	"warehouse-service/internal/database"
 	"warehouse-service/internal/server"
@@ -31,11 +32,15 @@ func run() error {
 
 	repositories := postgres.NewRepositories(db)
 	tokens := security.NewJWT(cfg.JWTSecret)
+	images, err := storage.NewCloudinary(cfg.Cloudinary)
+	if err != nil {
+		return err
+	}
 	api := controller.New(
 		usecase.NewAuth(repositories, tokens),
 		usecase.NewCatalog(repositories),
 		usecase.NewSales(repositories),
-		usecase.NewWorkflow(repositories),
+		usecase.NewWorkflow(repositories, images),
 		tokens,
 	)
 	apiServer := server.New(cfg, db, api)

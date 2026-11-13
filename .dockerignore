@@ -1,0 +1,7 @@
+.git
+.env
+.env.example
+config/.env
+*.test
+coverage.out
+security-reports

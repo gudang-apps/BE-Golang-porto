@@ -19,7 +19,7 @@ psql -h localhost -p 5432 -U <db-user> -d <db-name> -f .\migrations\002_inventor
 
 For an existing database created from an older warehouse schema, back up data and apply these migrations deliberately. They do not drop existing schemas or data.
 
-Configure `.env` with `APP_ENV`, `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`, and `JWT_SECRET` (at least 32 characters). `DB_SSLMODE` is optional and defaults to `disable`.
+Copy `.env.example` to `.env` and configure `APP_ENV`, `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`, and `JWT_SECRET` (at least 32 characters). `DB_SSLMODE` is optional and defaults to `disable`. Cloudinary credentials are required in production; local image uploads also require them. Keep `.env` out of source control.
 
 ## Initial accounts
 
@@ -51,14 +51,35 @@ Emails are stored in lowercase. Supported roles are `owner` and `staff`.
 ## Inventory workflow
 
 - `POST /api/v1/scans` records a barcode and quantity for the signed-in employee.
-- `POST /api/v1/sku-requests` submits a new SKU and product photo. Requests remain pending until an owner reviews them.
+- `POST /api/v1/sku-requests` accepts a JSON `photo` data URI (JPEG, PNG, or WebP), uploads the image to Cloudinary, and stores the HTTPS URL. Requests remain pending until an owner reviews them.
 - `GET /api/v1/sku-requests` returns all requests to owners and only the signed-in employee's requests to staff.
 - `PATCH /api/v1/sku-requests/{id}/review` accepts `{"status":"approved"}` or `{"status":"rejected","review_note":"..."}`. Approving creates the product and stores its photo atomically.
+- The web dashboard can read these photo URLs through the existing GET endpoints; image uploads are performed by the mobile app when it submits a SKU request.
 
 ## Run
 
 ```powershell
+if (!(Test-Path .env)) { Copy-Item .env.example .env }
+# Fill the database and JWT settings, then:
 go run .\cmd\server
 ```
 
 `GET /healthz` checks database availability. There are no public registration or OTP endpoints.
+
+## Docker
+
+With Docker Desktop running and `.env` filled with local database/JWT values:
+
+```powershell
+docker compose up --build
+```
+
+Compose and `go run` both read the `.env` file in `BE_web`. The API is at `http://localhost:8080`; PostgreSQL is available to host tools at port `5434`. On the first start, Compose initializes a fresh PostgreSQL volume using both SQL files under `migrations`. `GET http://localhost:8080/healthz` reports backend/database readiness. Stop containers with `docker compose down`; `docker compose down -v` also removes the local database volume and its data.
+
+## Render
+
+The `render.yaml` Blueprint deploys the Docker service and prompts for database and Cloudinary values that must remain private. Render supplies `PORT`; `SERVER_PORT` can still be used locally. Set `CORS_ORIGIN` to the deployed web dashboard's origin, and apply both SQL migrations to the configured PostgreSQL database before using the API. Set `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, and `CLOUDINARY_API_SECRET` in Render's environment settings. The upload folder defaults to `crud_image`.
+
+Do not put API secrets in this repository. Since an API secret was shared in chat, rotate it in Cloudinary before deployment and use the replacement only in local ignored `.env` and Render's secret environment settings.
+
+For the complete local Docker and Render checklist, see [DEPLOYMENT-NEXT-STEPS.md](./DEPLOYMENT-NEXT-STEPS.md).

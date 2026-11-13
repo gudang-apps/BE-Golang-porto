@@ -14,3 +14,8 @@ instruction.md
 README copy.md
 DS_Store
 config/.env
+.env.example
+.dockerignore
+render.yaml
+docker-compose.yml
+DEPLOYMENT-NEXT-STEPS.md

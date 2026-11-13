@@ -15,6 +15,7 @@ type Config struct {
 	CORSOrigin string
 	Database   Database
 	JWTSecret  []byte
+	Cloudinary Cloudinary
 }
 
 type Database struct {
@@ -24,6 +25,14 @@ type Database struct {
 	Password string
 	Name     string
 	SSLMode  string
+}
+
+type Cloudinary struct {
+	CloudName    string
+	APIKey       string
+	APISecret    string
+	UploadFolder string
+	Enabled      bool
 }
 
 func Load() (Config, error) {
@@ -53,9 +62,13 @@ func fromValues(get func(string) string) (Config, error) {
 		return cfg, fmt.Errorf("APP_ENV tidak dikenal: %q", cfg.AppEnv)
 	}
 
-	cfg.Port, err = intValue(get, "SERVER_PORT", 8080)
+	portValue := get("SERVER_PORT")
+	if strings.TrimSpace(portValue) == "" {
+		portValue = get("PORT")
+	}
+	cfg.Port, err = intValue(func(string) string { return portValue }, "SERVER_PORT", 8080)
 	if err != nil || cfg.Port < 1 || cfg.Port > 65535 {
-		return cfg, errors.New("SERVER_PORT harus berupa port 1-65535")
+		return cfg, errors.New("SERVER_PORT atau PORT harus berupa port 1-65535")
 	}
 	cfg.CORSOrigin = strings.TrimSpace(get("CORS_ORIGIN"))
 	if cfg.CORSOrigin == "" {
@@ -85,6 +98,25 @@ func fromValues(get func(string) string) (Config, error) {
 		return cfg, errors.New("JWT_SECRET wajib memiliki minimal 32 karakter")
 	}
 	cfg.JWTSecret = []byte(secret)
+
+	cfg.Cloudinary = Cloudinary{
+		CloudName:    strings.TrimSpace(get("CLOUDINARY_CLOUD_NAME")),
+		APIKey:       strings.TrimSpace(get("CLOUDINARY_API_KEY")),
+		APISecret:    strings.TrimSpace(get("CLOUDINARY_API_SECRET")),
+		UploadFolder: strings.TrimSpace(get("CLOUDINARY_UPLOAD_FOLDER")),
+	}
+	if cfg.Cloudinary.UploadFolder == "" {
+		cfg.Cloudinary.UploadFolder = "crud_image"
+	}
+	hasCloudinaryCredentials := cfg.Cloudinary.CloudName != "" || cfg.Cloudinary.APIKey != "" || cfg.Cloudinary.APISecret != ""
+	if hasCloudinaryCredentials {
+		if cfg.Cloudinary.CloudName == "" || cfg.Cloudinary.APIKey == "" || cfg.Cloudinary.APISecret == "" {
+			return cfg, errors.New("CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, dan CLOUDINARY_API_SECRET harus diatur bersama")
+		}
+		cfg.Cloudinary.Enabled = true
+	} else if cfg.AppEnv == "production" {
+		return cfg, errors.New("CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, dan CLOUDINARY_API_SECRET wajib diatur di production")
+	}
 
 	return cfg, nil
 }
