@@ -8,14 +8,9 @@ air.toml
 **/.DS_Store
 .env
 .vscode
-docs.md
-instructions.md
-instruction.md
 README copy.md
+Dockerfile
 DS_Store
 config/.env
 .env.example
-.dockerignore
-render.yaml
-docker-compose.yml
 DEPLOYMENT-NEXT-STEPS.md
