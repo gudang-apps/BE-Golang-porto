@@ -1,16 +1,17 @@
-.scannerwork
-Makefile
-config/*.env
-.idea
-air.toml
-.air.toml
-/tmp/*
-**/.DS_Store
+# Environment & Secrets (Wajib di-ignore)
 .env
-.vscode
-README copy.md
-Dockerfile
-DS_Store
-config/.env
+config/*.env
 .env.example
+
+# Editor & OS Files (Wajib di-ignore)
+.idea/
+.vscode/
+.DS_Store
+DS_Store
+
+# Build Caches & Temp (Wajib di-ignore)
+.scannerwork/
+/tmp/*
+
+# Catatan Deployment Pribadi (Sesuai keinginanmu)
 DEPLOYMENT-NEXT-STEPS.md
